@@ -1,427 +1,366 @@
-set ns [new Simulator]
-set tf [open ex1.tr w]
+import heapq
 
-$ns trace-all $tf
-
-set nf [open ex1.nam w]
-$ns namtrace-all $nf
-
-set n0 [$ns node]
-set n1 [$ns node]
-set n2 [$ns node]
-set n3 [$ns node]
-
-$ns duplex-link $n0 $n2 2Mb 2ms DropTail
-$ns duplex-link $n1 $n2 2Mb 2ms DropTail
-$ns duplex-link $n2 $n3 0.4Mb 10ms DropTail
-
-#$ns queue-limit $n0 $n1 5
-
-set udp1 [new Agent/UDP]
-$ns attach-agent $n0 $udp1
-set null1 [new Agent/Null]
-$ns attach-agent $n3 $null1
-$ns connect $udp1 $null1
-
-set cbr1 [new Application/Traffic/CBR]
-$cbr1 attach-agent $udp1
-$ns at 1.1 "$cbr1 start"
-
-set tcp [new Agent/TCP]
-$ns attach-agent $n3 $tcp
-set sink [new Agent/TCPSink]
-$ns attach-agent $n1 $sink
-$ns connect $tcp $sink
-
-
-
-set ftp [new Application/FTP]
-$ftp attach-agent $tcp
-
-$ns at 0.1 "$ftp start"
-$ns at 10.0 "finish"
-
-proc finish { } {
-	global ns tf nf
-	$ns flush-trace
-	close $tf
-	close $nf
-	puts "Running nam...."
-	exec nam ex1.nam &
-	exit 0
-      }
-$ns run
-
-BEGIN{
-
-tcp_count=0;
-udp_count=0;
-
-if ($1 == "d" && $5 == "tcp") 
-tcp_count++
-
-if ($1 == "d" && $5 == "cbr") 
-udp_count++;
-
+romania_graph = {
+    "Arad": [("Zerind", 75), ("Timisoara", 118), ("Sibiu", 140)],
+    "Zerind": [("Arad", 75), ("Oradea", 71)],
+    "Oradea": [("Zerind", 71), ("Sibiu", 151)],
+    "Timisoara": [("Arad", 118), ("Lugoj", 111)],
+    "Lugoj": [("Timisoara", 111), ("Mehadia", 70)],
+    "Mehadia": [("Lugoj", 70), ("Drobeta", 75)],
+    "Drobeta": [("Mehadia", 75), ("Craiova", 120)],
+    "Sibiu": [("Arad", 140), ("Oradea", 151), ("Fagaras", 99), ("Rimnicu Vilcea", 80)],
+    "Rimnicu Vilcea": [("Sibiu", 80), ("Pitesti", 97), ("Craiova", 146)],
+    "Craiova": [("Drobeta", 120), ("Rimnicu Vilcea", 146), ("Pitesti", 138)],
+    "Pitesti": [("Rimnicu Vilcea", 97), ("Craiova", 138), ("Bucharest", 101)],
+    "Fagaras": [("Sibiu", 99), ("Bucharest", 211)],
+    "Bucharest": [("Fagaras", 211), ("Pitesti", 101), ("Giurgiu", 90), ("Urziceni", 85)],
+    "Giurgiu": [("Bucharest", 90)],
+    "Urziceni": [("Bucharest", 85), ("Hirsova", 98), ("Vaslui", 142)],
+    "Hirsova": [("Urziceni", 98), ("Eforie", 86)],
+    "Eforie": [("Hirsova", 86)],
+    "Vaslui": [("Urziceni", 142), ("Iasi", 92)],
+    "Iasi": [("Vaslui", 92), ("Neamt", 87)],
+    "Neamt": [("Iasi", 87)]
 }
 
-END {
-printf("Number of packet dropped in TCP %d\n", tcp_count);
-printf("Number of packet dropped in UDP %d\n", udp_count);
-}
-
-
-
-
-
-set ns [new Simulator]
-set tf [open prog2.tr]
-$ns trace-all $tf
-set nf [open prog2.nam w]
-$ns namtrace-all $nf
-set cwind [open win2.tr w]
-$ns color 1 Blue
-
-set n1 [$ns node]
-set n2 [$ns node]
-set n3 [$ns node]
-set n4 [$ns node]
-set n5 [$ns node]
-set n6 [$ns node]
-$ns duplex-link $n1 $n3 2Mb 2ms DropTail
-$ns duplex-link $n2 $n3 2Mb 2ms DropTail
-$ns duplex-link $n3 $n4 2Mb 2ms DropTail
-$ns duplex-link $n4 $n5 2Mb 2ms DropTail
-$ns duplex-link $n4 $n6 2Mb 2ms DropTail
-
-set tcp0 [new Agent/TCP]
-$ns attach-agent $n1 $tcp0 
-set sink0 [new Agent/TCPSink]
-$ns attach-agent $n6 $sink0
-$ns connect $tcp0 $sink0
-set ftp [new Application/FTP]
-$ftp attach-agent $tcp0
-
-set tcp1 [new Agent/TCP]
-$ns attach-agent $n2 $tcp1
-set sink1 [new Agent/TCPSink]
-$ns attach-agent $n5 $sink1
-$ns connect $tcp1 $sink1
-set tel1 [new Application/Telnet]
-$tel1 attach-agent $tcp1
-$ns at 0.1 "$tel1 start"
-$ns at 10 "finish"
-
-proc plotWindow {tcpSource file} {
-    global ns 
-    set time 0.01 
-    set now [$ns now]
-    set cwd0 [$tcpSource set cwnd_]
-    puts $file "$now $cwd0"
-    $ns at [expr $now+$time] "plotWindow $tcpSource $file"
-}
-proc finish { } {
-        global ns tf nf cwind
-        $ns flush-trace
-        close $tf 
-        close $nf 
-        puts "Running nam..."
-        exec nam prog2.nam &
-        exec xgraph win2.tr &
-        exit 0
-}
-
-BEGIN{
-
-last=0
-tcp_sz=0
-cbr_sz=0
-tot_sz=0
-}
-{
-    action=$1;
-    time=$2;
-    from=$3;
-    to=$4;
-    type=$5;
-    pktsize=$6;
-    flow_id=$8;
-    src=$9;
-    dst=$10;
-    seq_no=$11;
-    packet_id=$12;
-    if(type=="tcp" && action="r" && to=="3")
-    tcp_sz+=pktsize
-    if(type=="cbr" && action="r" && to =="3")
-    cbr_sz+=pktsize
-tot_sz+=pktsize
-}
-END {
-print time, (tcp_sz*8/1000000)
-print time, (tcp_sz*8/1000000),(tot_sz*8/10000000)
-}
-
-
-
-
-set ns [new Simulator]
-set tf [open ex4.tr w]
-$ns trace-all $tf
-set nf [open ex4.nam w]
-$ns namtrace-all $nf
-set cwind [open win4.tr w]
-$ns color 1 Blue
-$ns color 2 Red
-
-$ns rtproto DV
-
-set n0 [$ns node]
-set n1 [$ns node]
-set n2 [$ns node]
-set n3 [$ns node]
-set n4 [$ns node]
-set n5 [$ns node]
-
-$ns duplex-link $n0 $n1 0.3Mb 10ms DropTail
-$ns duplex-link $n0 $n2 0.3Mb 10ms DropTail
-$ns duplex-link $n2 $n3 0.3Mb 10ms DropTail
-$ns duplex-link $n1 $n4 0.3Mb 10ms DropTail
-$ns duplex-link $n3 $n5 0.5Mb 10ms DropTail
-$ns duplex-link $n4 $n5 0.5Mb 10ms DropTail
-
-$ns duplex-link-op $n0 $n1 orient right-up
-$ns duplex-link-op $n0 $n2 orient right-down
-$ns duplex-link-op $n1 $n4 orient right
-$ns duplex-link-op $n2 $n3 orient right
-$ns duplex-link-op $n4 $n5 orient right-down
-$ns duplex-link-op $n3 $n5 orient right-up
-
-set tcp [new Agent/TCP]
-$ns attach-agent $n0 $tcp 
-set sink [new Agent/TCPSink]
-$ns attach-agent $n5 $sink
-$ns connect $tcp $sink
-$tcp set fid_ 1
-set ftp [new Application/FTP]
-$ftp attach-agent $tcp
-
-$ns rtmodel-at 1.0 down $n1 $n4
-$ns rtmodel-at 3.0 up $n1 $n4
-$ns at 0.1 "$ftp start"
-$ns at 12.0 "finish"
-
-proc plotWindow { tcpSource file } {
-    global ns
-    set time 0.01
-    set now [$ns now]
-    set cwnd [$tcpSource set cwnd_]
-    puts $file "$now $cwnd"
-    $ns at [expr $now+$time] "plotWindow $tcpSource $file"
-}
-$ns at 1.0 "plotWindow $tcp $cwind"
-proc finish { } {
-    global ns tf nf cwind
-    $ns flush-trace
-    close $tf 
-    close $nf 
-    exec nam ex4.nam &
-    exec xgraph win4.tr &
-    exit 0
-}
-$ns run
-
-
-
-set ns [new Simulator]
-
-set tf [open p4.tr w]
-$ns trace-all $tf
-
-set nf [open p4.nam w]
-$ns namtrace-all $nf
-
-set s [$ns node]
-set c [$ns node]
-$ns color 1 Blue
-
-$s label "Server"
-$c label "Client"
-
-$ns duplex-link $s $c 10Mb 10ms DropTail
-$ns duplex-link-op $s $c orient right
-
-set tcp0 [new Agent/TCP]
-$ns attach-agent $s $tcp0
-
-$tcp0 set packetSize_ 1500
-
-set sink0 [new Agent/TCP]
-$ns attach-agent $c $sink0
-
-$ns connect $tcp0 $sink0
-
-set ftp0 [new Application/FTP]
-$ftp0 attach-agent $tcp0
-
-$tcp0 set fid_ 1
-
-proc finish {} {
-	global ns tf nf
-	$ns flush-trace
-	close $tf
-	close $nf
-	exec nam p4.nam &
-	exec awk -f p4transfer.awk p4.tr &
-	exec awk -f p4convert.awk p4.tr > convert.tr &
-	exec xgraph convert.tr -geometry 800*400 -t "bytes_received_at_client" -x "time_in_secs" -y "bytes_in_bps" &
-}
-
-$ns at 0.01 "$ftp0 start"
-$ns at 15.0 "$ftp0 stop"
-$ns at 15.1 "finish"
-$ns run
-
-
-# AWK script to calulate the time required to transfer the 10 MB file from the server to client
-BEGIN {
-	count=0;
-	time=0;
-    total_bytes_sent =0;
-    total_bytes_received=0;
-        
-}
-{
-	if ( $1 == "r" &&  $4 == 1 && $5 == "tcp")
-		total_bytes_received += $6;
-
-    if($1 == "+" &&  $3 == 0 && $5 == "tcp")
-		total_bytes_sent +=  $6;
-} 
-END {
-       system("clear");
-       printf("\n Transmission time required to transfer the file is %f",$2);
-       printf("\n Actual data sent from the server is %f Mbps",(total_bytes_sent)/1000000);
-       printf("\n Data Received by the client is %f Mbps\n",(total_bytes_received)/1000000);            	 
-} 
-
-
-BEGIN{
-	count=0;
-	time=0;
-}
-{
-	if($1=="r" && $4==1 && $5=="tcp")
-	{
-	count+=$6;
-	time=$2;
-	printf("\n%f\t%f",time,(count)/1000000);
-}
-}
-END{
-}
-
-
-set ns [new Simulator -multicast on]
-
-
-set tf [open mcast.tr w]
-$ns trace-all $tf
-
-
-set fd [open mcast.nam w]
-$ns namtrace-all $fd
-set n0 [$ns node]
-set n1 [$ns node]
-set n2 [$ns node]
-set n3 [$ns node]
-set n4 [$ns node]
-set n5 [$ns node]
-set n6 [$ns node]
-set n7 [$ns node]
-
-
-$ns duplex-link $n0 $n2 1.5Mb 10ms DropTail
-$ns duplex-link $n1 $n2 1.5Mb 10ms DropTail
-$ns duplex-link $n2 $n3 1.5Mb 10ms DropTail
-$ns duplex-link $n3 $n4 1.5Mb 10ms DropTail
-$ns duplex-link $n3 $n7 1.5Mb 10ms DropTail
-$ns duplex-link $n4 $n5 1.5Mb 10ms DropTail
-$ns duplex-link $n4 $n6 1.5Mb 10ms DropTail
-
-
-set mproto DM
-set mrthandle [$ns mrtproto $mproto {}]
-
-
-set group1 [Node allocaddr]
-set group2 [Node allocaddr]
-
-
-set udp0 [new Agent/UDP]
-$ns attach-agent $n0 $udp0
-$udp0 set dst_addr_ $group1
-$udp0 set dst_port_ 0
-set cbr1 [new Application/Traffic/CBR]
-$cbr1 attach-agent $udp0
-
-
-set udp1 [new Agent/UDP]
-$ns attach-agent $n1 $udp1
-$udp1 set dst_addr_ $group2
-$udp1 set dst_port_ 0
-set cbr2 [new Application/Traffic/CBR]
-$cbr2 attach-agent $udp1
-
-
-set revr1 [new Agent/Null]
-$ns attach-agent $n5 $revr1
-$ns at 1.0 "$n5 join-group $revr1 $group1"
-
-set revr2 [new Agent/Null]
-$ns attach-agent $n6 $revr2
-$ns at 1.5 "$n6 join-group $revr2 $group1"
-
-set revr3 [new Agent/Null]
-$ns attach-agent $n7 $revr3
-$ns at 2.0 "$n7 join-group $revr3 $group1"
-
-
-set revr4 [new Agent/Null]
-$ns attach-agent $n5 $revr4
-$ns at 2.5 "$n5 join-group $revr4 $group2"
-
-set revr5 [new Agent/Null]
-$ns attach-agent $n6 $revr5
-$ns at 3.0 "$n6 join-group $revr5 $group2"
-
-set revr6 [new Agent/Null]
-$ns attach-agent $n7 $revr6
-$ns at 3.5 "$n7 join-group $revr6 $group2"
-
-$ns at 4.0 "$n5 leave-group $revr1 $group1"
-$ns at 4.5 "$n6 leave-group $revr2 $group1"
-$ns at 5.0 "$n7 leave-group $revr3 $group1"
-
-$ns at 5.5 "$n5 leave-group $revr4 $group2"
-$ns at 6.0 "$n6 leave-group $revr5 $group2"
-$ns at 6.5 "$n7 leave-group $revr6 $group2"
-
-
-$ns at 0.5 "$cbr1 start"
-$ns at 9.5 "$cbr1 stop"
-
-$ns at 0.5 "$cbr2 start"
-$ns at 9.5 "$cbr2 stop"
-
-$ns at 10.0 "finish"
-
-proc finish {} {
-global ns tf fd
-$ns flush-trace
-close $tf
-close $fd
-exec nam mcast.nam &
-exit 0
-}
-
-$ns run
+def astar_search(graph, start, goal):
+    open_set = [(0, start)]  # Priority queue with initial cost and start node
+    came_from = {}  # Parent node for each node
+    g_score = {city: float('inf') for city in graph}
+    g_score[start] = 0
+    f_score = {city: float('inf') for city in graph}
+    f_score[start] = heuristic(start, goal)
+
+    while open_set:
+        _, current = heapq.heappop(open_set)
+
+        if current == goal:
+            return reconstruct_path(came_from, current, g_score)
+
+        for neighbor, cost in graph[current]:
+            tentative_g_score = g_score[current] + cost
+
+            if tentative_g_score < g_score[neighbor]:
+                came_from[neighbor] = current
+                g_score[neighbor] = tentative_g_score
+                f_score[neighbor] = g_score[neighbor] + heuristic(neighbor, goal)
+                heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+    return None  # No path found
+
+def heuristic(city, goal):
+    # This is a simple heuristic function, the straight-line distance between two cities
+    # You can replace it with a more accurate heuristic if you have one
+    coordinates = {
+        "Arad": (91, 492), "Bucharest": (400, 327), "Craiova": (253, 288),
+        "Drobeta": (165, 299), "Eforie": (562, 489), "Fagaras": (305, 449),
+        "Giurgiu": (375, 270), "Hirsova": (534, 350), "Iasi": (473, 506),
+        "Lugoj": (165, 379), "Mehadia": (168, 339), "Neamt": (406, 537),
+        "Oradea": (131, 571), "Pitesti": (320, 368), "Rimnicu Vilcea": (233, 410),
+        "Sibiu": (207, 457), "Timisoara": (94, 410), "Urziceni": (456, 350),
+        "Vaslui": (509, 444), "Zerind": (108, 531)
+    }
+
+    x1, y1 = coordinates[city]
+    x2, y2 = coordinates[goal]
+    return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+
+def reconstruct_path(came_from, current, g_score):
+    path = [current]
+    while current in came_from:
+        current = came_from[current]
+        path.append(current)
+    path.reverse()
+    return path, g_score[path[-1]]
+
+if __name__ == "__main__":
+    start_city = "Iasi"  # Change this to your desired starting city
+    goal_city = "Bucharest"  # Change this to your desired goal city
+
+    path, total_distance = astar_search(romania_graph, start_city, goal_city)
+
+    if path:
+        print(f"Shortest path from {start_city} to {goal_city}:")
+        print(" -> ".join(path))
+        print(f"Total distance: {total_distance}")
+    else:
+        print(f"No path found from {start_city} to {goal_city}")
+
+
+
+
+
+import random
+
+def display(room):
+    print(room)
+
+room = [
+    [1, 1, 1, 1],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1],
+    [1, 1, 1, 1],
+]
+
+print("All the rooms are dirty")
+display(room)
+
+x = 0
+y = 0
+
+while x < 4:
+    while y < 4:
+        room[x][y] = random.choice([0, 1])
+        y += 1
+    x += 1
+    y = 0
+
+print("Before cleaning the room I detect all of these random dirts")
+display(room)
+
+x = 0
+y = 0
+z = 0
+
+while x < 4:
+    while y < 4:
+        if room[x][y] == 1:
+            print("Vaccum in this location now,", x, y)
+            room[x][y] = 0
+            print("cleaned", x, y)
+            z += 1
+        y += 1
+    x += 1
+    y = 0
+
+pro = (100 - ((z / 16) * 100))
+print("Room is clean now, Thanks for using")
+display(room)
+print('performance=', pro, '%')
+
+
+
+
+maximum, minimum = 1000, -1000
+
+def fun_alphabeta(d, node, maxp, v, A, B):
+    if d == 3:
+        return v[node]
+    
+    if maxp:
+        best = minimum
+        for i in range(0, 2):
+            value = fun_alphabeta(d + 1, node * 2 + i, False, v, A, B)
+            best = max(best, value)
+            A = max(A, best)
+            if B <= A:
+                break
+        return best
+    else:
+        best = maximum
+        for i in range(0, 2):
+            value = fun_alphabeta(d + 1, node * 2 + i, True, v, A, B)
+            best = min(best, value)
+            A = min(A, best)
+            if B <= A:
+                break
+        return best
+
+scr = []
+x = int(input("Enter total number of leaf nodes:"))
+for i in range(x):
+    y = int(input("Enter node value: "))
+    scr.append(y)
+
+d = int(input("Enter depth value:"))
+node = int(input("Enter node value:"))
+
+print("The optimal value is:", fun_alphabeta(d, node, True, scr, minimum, maximum))
+
+
+
+import os
+
+turn = 'X'
+win = False
+spaces = 9
+
+def draw(board):
+    for i in range(6, -1, -3):
+        print(' ' + board[i] + '|' + board[i+1] + '|' + board[i+2])
+
+def takeinput(board, spaces, turn):
+    pos = -1
+    print(turn + "'s turn:")
+    while pos == -1:
+        try:
+            print("Pick position 1-9:")
+            pos = int(input())
+            if pos < 1 or pos > 9:
+                pos = -1
+            elif board[pos - 1] != ' ':
+                pos = -1
+        except:
+            print("Enter a valid position")
+    spaces -= 1
+    board[pos - 1] = turn
+    if turn == 'X':
+        turn = 'O'
+    else:
+        turn = 'X'
+    return board, spaces, turn
+
+def checkwin(board):
+    # could probably make this better
+    for i in range(0, 3):
+        r = i * 3
+        if board[r] != ' ':
+            if board[r] == board[r+1] and board[r+1] == board[r+2]:
+                return board[r]
+        # columns
+        if board[i] != ' ':
+            if board[i] == board[i+3] and board[i] == board[i+6]:
+                return board[i]
+        # diagonals
+        if board[0] != ' ':
+            if board[0] == board[4] and board[4] == board[8]:
+                return board[0]
+        if board[2] != ' ':
+            if board[2] == board[4] and board[4] == board[6]:
+                return board[2]
+    return 0
+
+board = [' ']*9
+
+while not win and spaces:
+    draw(board)
+    board, spaces, turn = takeinput(board, spaces, turn)
+    win = checkwin(board)
+    os.system('cls')
+
+draw(board)
+
+if not win and not spaces:
+    print("Draw")
+elif win:
+    print(f'{win} wins')
+
+input()
+
+
+
+
+def mcculloch_pitts(inputs, weights, threshold):
+    """McCulloch-Pitts neuron model."""
+    # Ensure the number of inputs matches the number of weights
+    assert len(inputs) == len(weights), "Number of inputs must match number of weights"
+
+    # Calculate the weighted sum of inputs
+    weighted_sum = sum(x * w for x, w in zip(inputs, weights))
+
+    # Apply the threshold function
+    output = 1 if weighted_sum >= threshold else 0
+
+    return output
+
+def test_logic_gate(logic_gate):
+    """Test a logic gate using McCulloch-Pitts neuron."""
+    print(f"Testing {logic_gate} gate:")
+
+    if logic_gate == "AND":
+        # AND gate
+        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        weights = (1, 1)
+        threshold = 2
+
+    elif logic_gate == "OR":
+        # OR gate
+        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        weights = (1, 1)
+        threshold = 1
+
+    elif logic_gate == "XOR":
+        # XOR gate (requires a combination of AND, OR, and NOT gates)
+        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        weights_and = (1, 1)
+        weights_or = (1, 1)
+        weights_not = (-1,)
+        threshold = 1
+        for input_pair in inputs:
+            input1, input2 = input_pair
+            # XOR is implemented using a combination of AND, OR, and NOT
+            and_result = mcculloch_pitts(input_pair, weights_and, threshold)
+            or_result = mcculloch_pitts(input_pair, weights_or, threshold)
+            not_result = mcculloch_pitts((and_result,), weights_not, threshold)
+
+            xor_result = mcculloch_pitts((or_result, not_result), weights_and, threshold)
+            print(f"{input_pair}: {xor_result}")
+        return
+
+    elif logic_gate == "AND NOT":
+        # AND NOT gate
+        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        weights = (1, -1)
+        threshold = 0
+
+    else:
+        print("Invalid logic gate.")
+        return
+
+    # Test the logic gate
+    for input_pair in inputs:
+        result = mcculloch_pitts(input_pair, weights, threshold)
+        print(f"{input_pair}: {result}")
+
+# Test different logic gates
+test_logic_gate("AND")
+test_logic_gate("OR")
+test_logic_gate("XOR")
+test_logic_gate("AND NOT")
+
+
+
+
+import numpy as np
+
+class Perceptron:
+    def __init__(self, input_size, learning_rate=0.1, threshold=0.0, max_iterations=1000):
+        self.weights = np.random.rand(input_size)
+        self.threshold = threshold
+        self.learning_rate = learning_rate
+        self.max_iterations = max_iterations
+
+    def activate(self, net_input):
+        return 1 if net_input >= self.threshold else 0
+
+    def train(self, input_data, labels):
+        iteration = 0
+        while iteration < self.max_iterations:
+            converged = True
+            for i in range(len(input_data)):
+                input_vector = np.array(input_data[i])
+                label = labels[i]
+                net_input = np.dot(input_vector, self.weights)
+                predicted_output = self.activate(net_input)
+                error = label - predicted_output
+                if error != 0:
+                    converged = False
+                    self.weights += self.learning_rate * error * input_vector
+            if converged:
+                break
+            iteration += 1
+        return iteration
+
+# Example usage
+input_data = [
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1]
+]
+
+labels = [0, 0, 0, 1]
+perceptron = Perceptron(input_size=2)
+iterations = perceptron.train(input_data, labels)
+print("Converged in {} iterations".format(iterations))
+print("Final weights:", perceptron.weights)
