@@ -1,366 +1,401 @@
-import heapq
+set val(chan) Channel/WirelessChannel
+set val(prop) Propagation/TwoRayGround
+set val(netif) Phy/WirelessPhy
+set val(mac) Mac/802_11
+set val(ifq) Queue/DropTail/PriQueue
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna
+set val(x) 500
+set val(y) 500
+set val(ifqlen) 50
+set val(nn) 2
+set val(stop) 20.0
+set val(rp) DSDV
+set ns_ [new Simulator]
+set tracefd [open 001.tr w]
+$ns_ trace-all $tracefd
 
-romania_graph = {
-    "Arad": [("Zerind", 75), ("Timisoara", 118), ("Sibiu", 140)],
-    "Zerind": [("Arad", 75), ("Oradea", 71)],
-    "Oradea": [("Zerind", 71), ("Sibiu", 151)],
-    "Timisoara": [("Arad", 118), ("Lugoj", 111)],
-    "Lugoj": [("Timisoara", 111), ("Mehadia", 70)],
-    "Mehadia": [("Lugoj", 70), ("Drobeta", 75)],
-    "Drobeta": [("Mehadia", 75), ("Craiova", 120)],
-    "Sibiu": [("Arad", 140), ("Oradea", 151), ("Fagaras", 99), ("Rimnicu Vilcea", 80)],
-    "Rimnicu Vilcea": [("Sibiu", 80), ("Pitesti", 97), ("Craiova", 146)],
-    "Craiova": [("Drobeta", 120), ("Rimnicu Vilcea", 146), ("Pitesti", 138)],
-    "Pitesti": [("Rimnicu Vilcea", 97), ("Craiova", 138), ("Bucharest", 101)],
-    "Fagaras": [("Sibiu", 99), ("Bucharest", 211)],
-    "Bucharest": [("Fagaras", 211), ("Pitesti", 101), ("Giurgiu", 90), ("Urziceni", 85)],
-    "Giurgiu": [("Bucharest", 90)],
-    "Urziceni": [("Bucharest", 85), ("Hirsova", 98), ("Vaslui", 142)],
-    "Hirsova": [("Urziceni", 98), ("Eforie", 86)],
-    "Eforie": [("Hirsova", 86)],
-    "Vaslui": [("Urziceni", 142), ("Iasi", 92)],
-    "Iasi": [("Vaslui", 92), ("Neamt", 87)],
-    "Neamt": [("Iasi", 87)]
+set namtrace [open 001.nam w]
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+set prop [new $val(prop)]
+set topo [new Topography]
+$topo load_flatgrid $val(x) $val(y)
+create-god $val(nn)
+$ns_ node-config -adhocRouting $val(rp) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-routeTrace ON \
+-macTrace ON \
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0
+
 }
 
-def astar_search(graph, start, goal):
-    open_set = [(0, start)]  # Priority queue with initial cost and start node
-    came_from = {}  # Parent node for each node
-    g_score = {city: float('inf') for city in graph}
-    g_score[start] = 0
-    f_score = {city: float('inf') for city in graph}
-    f_score[start] = heuristic(start, goal)
-
-    while open_set:
-        _, current = heapq.heappop(open_set)
-
-        if current == goal:
-            return reconstruct_path(came_from, current, g_score)
-
-        for neighbor, cost in graph[current]:
-            tentative_g_score = g_score[current] + cost
-
-            if tentative_g_score < g_score[neighbor]:
-                came_from[neighbor] = current
-                g_score[neighbor] = tentative_g_score
-                f_score[neighbor] = g_score[neighbor] + heuristic(neighbor, goal)
-                heapq.heappush(open_set, (f_score[neighbor], neighbor))
-
-    return None  # No path found
-
-def heuristic(city, goal):
-    # This is a simple heuristic function, the straight-line distance between two cities
-    # You can replace it with a more accurate heuristic if you have one
-    coordinates = {
-        "Arad": (91, 492), "Bucharest": (400, 327), "Craiova": (253, 288),
-        "Drobeta": (165, 299), "Eforie": (562, 489), "Fagaras": (305, 449),
-        "Giurgiu": (375, 270), "Hirsova": (534, 350), "Iasi": (473, 506),
-        "Lugoj": (165, 379), "Mehadia": (168, 339), "Neamt": (406, 537),
-        "Oradea": (131, 571), "Pitesti": (320, 368), "Rimnicu Vilcea": (233, 410),
-        "Sibiu": (207, 457), "Timisoara": (94, 410), "Urziceni": (456, 350),
-        "Vaslui": (509, 444), "Zerind": (108, 531)
-    }
-
-    x1, y1 = coordinates[city]
-    x2, y2 = coordinates[goal]
-    return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
-
-def reconstruct_path(came_from, current, g_score):
-    path = [current]
-    while current in came_from:
-        current = came_from[current]
-        path.append(current)
-    path.reverse()
-    return path, g_score[path[-1]]
-
-if __name__ == "__main__":
-    start_city = "Iasi"  # Change this to your desired starting city
-    goal_city = "Bucharest"  # Change this to your desired goal city
-
-    path, total_distance = astar_search(romania_graph, start_city, goal_city)
-
-    if path:
-        print(f"Shortest path from {start_city} to {goal_city}:")
-        print(" -> ".join(path))
-        print(f"Total distance: {total_distance}")
-    else:
-        print(f"No path found from {start_city} to {goal_city}")
-
-
-
-
-
-import random
-
-def display(room):
-    print(room)
-
-room = [
-    [1, 1, 1, 1],
-    [1, 1, 1, 1],
-    [1, 1, 1, 1],
-    [1, 1, 1, 1],
-]
-
-print("All the rooms are dirty")
-display(room)
-
-x = 0
-y = 0
-
-while x < 4:
-    while y < 4:
-        room[x][y] = random.choice([0, 1])
-        y += 1
-    x += 1
-    y = 0
-
-print("Before cleaning the room I detect all of these random dirts")
-display(room)
-
-x = 0
-y = 0
-z = 0
-
-while x < 4:
-    while y < 4:
-        if room[x][y] == 1:
-            print("Vaccum in this location now,", x, y)
-            room[x][y] = 0
-            print("cleaned", x, y)
-            z += 1
-        y += 1
-    x += 1
-    y = 0
-
-pro = (100 - ((z / 16) * 100))
-print("Room is clean now, Thanks for using")
-display(room)
-print('performance=', pro, '%')
-
-
-
-
-maximum, minimum = 1000, -1000
-
-def fun_alphabeta(d, node, maxp, v, A, B):
-    if d == 3:
-        return v[node]
-    
-    if maxp:
-        best = minimum
-        for i in range(0, 2):
-            value = fun_alphabeta(d + 1, node * 2 + i, False, v, A, B)
-            best = max(best, value)
-            A = max(A, best)
-            if B <= A:
-                break
-        return best
-    else:
-        best = maximum
-        for i in range(0, 2):
-            value = fun_alphabeta(d + 1, node * 2 + i, True, v, A, B)
-            best = min(best, value)
-            A = min(A, best)
-            if B <= A:
-                break
-        return best
-
-scr = []
-x = int(input("Enter total number of leaf nodes:"))
-for i in range(x):
-    y = int(input("Enter node value: "))
-    scr.append(y)
-
-d = int(input("Enter depth value:"))
-node = int(input("Enter node value:"))
-
-print("The optimal value is:", fun_alphabeta(d, node, True, scr, minimum, maximum))
-
-
-
-import os
-
-turn = 'X'
-win = False
-spaces = 9
-
-def draw(board):
-    for i in range(6, -1, -3):
-        print(' ' + board[i] + '|' + board[i+1] + '|' + board[i+2])
-
-def takeinput(board, spaces, turn):
-    pos = -1
-    print(turn + "'s turn:")
-    while pos == -1:
-        try:
-            print("Pick position 1-9:")
-            pos = int(input())
-            if pos < 1 or pos > 9:
-                pos = -1
-            elif board[pos - 1] != ' ':
-                pos = -1
-        except:
-            print("Enter a valid position")
-    spaces -= 1
-    board[pos - 1] = turn
-    if turn == 'X':
-        turn = 'O'
-    else:
-        turn = 'X'
-    return board, spaces, turn
-
-def checkwin(board):
-    # could probably make this better
-    for i in range(0, 3):
-        r = i * 3
-        if board[r] != ' ':
-            if board[r] == board[r+1] and board[r+1] == board[r+2]:
-                return board[r]
-        # columns
-        if board[i] != ' ':
-            if board[i] == board[i+3] and board[i] == board[i+6]:
-                return board[i]
-        # diagonals
-        if board[0] != ' ':
-            if board[0] == board[4] and board[4] == board[8]:
-                return board[0]
-        if board[2] != ' ':
-            if board[2] == board[4] and board[4] == board[6]:
-                return board[2]
-    return 0
-
-board = [' ']*9
-
-while not win and spaces:
-    draw(board)
-    board, spaces, turn = takeinput(board, spaces, turn)
-    win = checkwin(board)
-    os.system('cls')
-
-draw(board)
-
-if not win and not spaces:
-    print("Draw")
-elif win:
-    print(f'{win} wins')
-
-input()
-
-
-
-
-def mcculloch_pitts(inputs, weights, threshold):
-    """McCulloch-Pitts neuron model."""
-    # Ensure the number of inputs matches the number of weights
-    assert len(inputs) == len(weights), "Number of inputs must match number of weights"
-
-    # Calculate the weighted sum of inputs
-    weighted_sum = sum(x * w for x, w in zip(inputs, weights))
-
-    # Apply the threshold function
-    output = 1 if weighted_sum >= threshold else 0
-
-    return output
-
-def test_logic_gate(logic_gate):
-    """Test a logic gate using McCulloch-Pitts neuron."""
-    print(f"Testing {logic_gate} gate:")
-
-    if logic_gate == "AND":
-        # AND gate
-        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        weights = (1, 1)
-        threshold = 2
-
-    elif logic_gate == "OR":
-        # OR gate
-        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        weights = (1, 1)
-        threshold = 1
-
-    elif logic_gate == "XOR":
-        # XOR gate (requires a combination of AND, OR, and NOT gates)
-        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        weights_and = (1, 1)
-        weights_or = (1, 1)
-        weights_not = (-1,)
-        threshold = 1
-        for input_pair in inputs:
-            input1, input2 = input_pair
-            # XOR is implemented using a combination of AND, OR, and NOT
-            and_result = mcculloch_pitts(input_pair, weights_and, threshold)
-            or_result = mcculloch_pitts(input_pair, weights_or, threshold)
-            not_result = mcculloch_pitts((and_result,), weights_not, threshold)
-
-            xor_result = mcculloch_pitts((or_result, not_result), weights_and, threshold)
-            print(f"{input_pair}: {xor_result}")
-        return
-
-    elif logic_gate == "AND NOT":
-        # AND NOT gate
-        inputs = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        weights = (1, -1)
-        threshold = 0
-
-    else:
-        print("Invalid logic gate.")
-        return
-
-    # Test the logic gate
-    for input_pair in inputs:
-        result = mcculloch_pitts(input_pair, weights, threshold)
-        print(f"{input_pair}: {result}")
-
-# Test different logic gates
-test_logic_gate("AND")
-test_logic_gate("OR")
-test_logic_gate("XOR")
-test_logic_gate("AND NOT")
-
-
-
-
-import numpy as np
-
-class Perceptron:
-    def __init__(self, input_size, learning_rate=0.1, threshold=0.0, max_iterations=1000):
-        self.weights = np.random.rand(input_size)
-        self.threshold = threshold
-        self.learning_rate = learning_rate
-        self.max_iterations = max_iterations
-
-    def activate(self, net_input):
-        return 1 if net_input >= self.threshold else 0
-
-    def train(self, input_data, labels):
-        iteration = 0
-        while iteration < self.max_iterations:
-            converged = True
-            for i in range(len(input_data)):
-                input_vector = np.array(input_data[i])
-                label = labels[i]
-                net_input = np.dot(input_vector, self.weights)
-                predicted_output = self.activate(net_input)
-                error = label - predicted_output
-                if error != 0:
-                    converged = False
-                    self.weights += self.learning_rate * error * input_vector
-            if converged:
-                break
-            iteration += 1
-        return iteration
-
-# Example usage
-input_data = [
-    [0, 0],
-    [0, 1],
-    [1, 0],
-    [1, 1]
-]
-
-labels = [0, 0, 0, 1]
-perceptron = Perceptron(input_size=2)
-iterations = perceptron.train(input_data, labels)
-print("Converged in {} iterations".format(iterations))
-print("Final weights:", perceptron.weights)
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ initial_node_pos $node_($i) 40
+}
+$ns_ at 1.1 "$node_(0) setdest 310.0 10.0 20.0"
+$ns_ at 1.1 "$node_(1) setdest 10.0 310.0 20.0"
+
+set tcp0 [new Agent/TCP]
+set sink0 [new Agent/TCPSink]
+$ns_ attach-agent $node_(0) $tcp0
+$ns_ attach-agent $node_(1) $sink0
+$ns_ connect $tcp0 $sink0
+set ftp0 [new Application/FTP]
+$ftp0 attach-agent $tcp0
+$ns_ at 1.0 "$ftp0 start"
+$ns_ at 18.0 "$ftp0 stop"
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ at $val(stop) "$node_($i) reset";
+}
+$ns_ at $val(stop) "puts \" NS EXITING...\"; $ns_ halt"
+
+puts "Starting simulation"
+$ns_ run
+
+
+
+set val(chan) Channel/WirelessChannel
+set val(prop) Propagation/TwoRayGround
+set val(netif) Phy/WirelessPhy
+set val(mac) Mac/802_11
+set val(ifq) Queue/DropTail/PriQueue
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna
+set val(x) 500
+set val(y) 400
+set val(ifqlen) 50
+set val(nn) 3
+set val(stop) 60.0
+set val(rp) AODV
+set ns_ [new Simulator]
+set tracefd [open prog7.tr w]
+$ns_ trace-all $tracefd
+
+set namtrace [open prog7.nam w]
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+set prop [new $val(prop)]
+set topo [new Topography]
+$topo load_flatgrid $val(x) $val(y)
+create-god $val(nn)
+$ns_ node-config -adhocRouting $val(rp) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-routeTrace ON \
+-macTrace ON \
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0
+}
+$node_(0) set x_ 5.0
+$node_(0) set y_ 5.0
+$node_(0) set z_ 0.0
+$node_(1) set x_ 490.0
+$node_(1) set y_ 528.0
+$node_(1) set z_ 0.0
+$node_(2) set x_ 150.0
+$node_(2) set y_ 240.0
+$node_(2) set z_ 0.0
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ initial_node_pos $node_($i) 40
+}
+$ns_ at 0.0 "$node_(0) setdest 450.0 285.0 30.0"
+$ns_ at 0.0 "$node_(1) setdest 450.0 285.0 30.0"
+$ns_ at 0.0 "$node_(2) setdest 450.0 285.0 30.0"
+$ns_ at 25.0 "$node_(0) setdest 300.0 285.0 10.0"
+$ns_ at 25.0 "$node_(2) setdest 100.0 285.0 10.0"
+$ns_ at 40.0 "$node_(0) setdest 490.0 255.0 5.0"
+$ns_ at 40.0 "$node_(2) setdest 1.0 255.0 5.0"
+
+set tcp0 [new Agent/TCP]
+set sink0 [new Agent/TCPSink]
+$ns_ attach-agent $node_(0) $tcp0
+$ns_ attach-agent $node_(1) $sink0
+$ns_ connect $tcp0 $sink0
+set ftp0 [new Application/FTP]
+$ftp0 attach-agent $tcp0
+$ns_ at 10.0 "$ftp0 start"
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ at $val(stop) "$node_($i) reset";
+}
+$ns_ at $val(stop) "puts \" NS EXITING...\"; $ns_ halt"
+
+puts "Starting simulation"
+$ns_ run
+
+
+
+
+set val(chan) Channel/WirelessChannel
+set val(prop) Propagation/TwoRayGround
+set val(netif) Phy/WirelessPhy
+set val(mac) Mac/802_11
+set val(ifq) Queue/DropTail/PriQueue
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna
+set val(x) 500
+set val(y) 500
+set val(ifqlen) 50
+set val(nn) 25
+set val(sc) "/home/student/Desktop/ns-allinone-2.35/ns-2.35/indep-utils/cmu-scen-gen/setdest/mob"
+set val(cp) "/home/student/Desktop/ns-allinone-2.35/ns-2.35/indep-utils/cmu-scen-gen/static"
+set val(rp) AODV
+set val(stop) 100.0
+set ns_ [new Simulator]
+set tracefd [open 003.tr w]
+$ns_ trace-all $tracefd
+
+set namtrace [open 003.nam w]
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+set prop [new $val(prop)]
+set topo [new Topography]
+$topo load_flatgrid $val(x) $val(y)
+set god_ [create-god $val(nn)]
+$ns_ node-config -adhocRouting $val(rp) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-routeTrace ON \
+-macTrace ON \
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0
+}
+for { set i 0 } { $i < $val(nn) } { incr i } {
+set xx [expr rand()*500]
+set yy [expr rand()*400]
+$node_($i) set X_ $xx
+$node_($i) set Y_ $yy
+}
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ initial_node_pos $node_($i) 40
+}
+puts "Loading scanerio file..."
+source $val(sc)
+puts "Loading connection file..."
+source $val(cp)
+
+for { set i 0 } { $i < $val(nn) } { incr i } {
+$ns_ at $val(stop) "$node_($i) reset";
+}
+$ns_ at $val(stop) "puts \" NS EXITING...\"; $ns_ halt"
+
+puts "Starting simulation"
+$ns_ run
+
+
+#cmu-scen-gen$ ns cbrgen.tcl -type tcp -nn 25 -seed 1 -mc 10 -rate 10 >static
+#cd setdest/
+#cmu-scen-gen/setdest$ set setdest
+#setdest -v 1 -n 25 -p 10 -M 10 -t 100 -x 500 -y 500 >mob
+
+
+
+
+set val(chan) Channel/WirelessChannel
+set val(prop) Propagation/TwoRayGround
+set val(netif) Phy/WirelessPhy
+set val(mac) Mac/802_11
+set val(ifq) CMUPriQueue
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna
+set val(x) 700
+set val(y) 700
+set val(ifqlen) 50
+set val(nn) 6
+set val(stop) 60.0
+set val(rp) DSR
+set ns_ [new Simulator]
+set tracefd [open 004.tr w]
+$ns_ trace-all $tracefd
+set namtrace [open 004.nam w]
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+set prop [new $val(prop)]
+set topo [new Topography]
+$topo load_flatgrid $val(x) $val(y)
+set god_ [create-god $val(nn)]
+#Node Configuration
+$ns_ node-config -adhocRouting $val(rp) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-routerTrace ON \
+-macTrace ON
+#Creating Nodes
+for {set i 0} {$i < $val(nn) } {incr i} {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0
+}
+#Initial Positions of Nodes
+$node_(0) set X_ 150.0
+$node_(0) set Y_ 300.0
+$node_(0) set Z_ 0.0
+$node_(1) set X_ 300.0
+$node_(1) set Y_ 500.0
+$node_(1) set Z_ 0.0
+$node_(2) set X_ 500.0
+$node_(2) set Y_ 500.0
+$node_(2) set Z_ 0.0
+$node_(3) set X_ 300.0
+$node_(3) set Y_ 100.0
+$node_(3) set Z_ 0.0
+$node_(4) set X_ 500.0
+$node_(4) set Y_ 100.0
+$node_(4) set Z_ 0.0
+$node_(5) set X_ 650.0
+$node_(5) set Y_ 300.0
+$node_(5) set Z_ 0.0
+for {set i 0} {$i < $val(nn)} {incr i} {
+$ns_ initial_node_pos $node_($i) 40
+}
+#Topology Design
+$ns_ at 1.0 "$node_(0) setdest 160.0 300.0 2.0"
+$ns_ at 1.0 "$node_(1) setdest 310.0 150.0 2.0"
+$ns_ at 1.0 "$node_(2) setdest 490.0 490.0 2.0"
+$ns_ at 1.0 "$node_(3) setdest 300.0 120.0 2.0"
+$ns_ at 1.0 "$node_(4) setdest 510.0 90.0 2.0"
+$ns_ at 1.0 "$node_(5) setdest 640.0 290.0 2.0"
+$ns_ at 4.0 "$node_(3) setdest 300.0 500.0 5.0"
+#Generating Traffic
+set tcp0 [new Agent/TCP]
+set sink0 [new Agent/TCPSink]
+$ns_ attach-agent $node_(0) $tcp0
+$ns_ attach-agent $node_(5) $sink0
+$ns_ connect $tcp0 $sink0
+set ftp0 [new Application/FTP]
+$ftp0 attach-agent $tcp0
+$ns_ at 5.0 "$ftp0 start"
+$ns_ at 60.0 "$ftp0 stop"
+#Simulation Termination
+for {set i 0} {$i < $val(nn) } {incr i} {
+$ns_ at $val(stop) "$node_($i) reset";
+}
+$ns_ at $val(stop) "puts \"NS EXITING...\" ; $ns_ halt"
+puts "Starting Simulation..."
+$ns_ run
+
+
+
+
+set val(chan) Channel/WirelessChannel
+set val(prop) Propagation/TwoRayGround
+set val(netif) Phy/WirelessPhy
+set val(mac) Mac/802_11
+set val(ifq) Queue/DropTail/PriQueue
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna
+set val(x) 500
+set val(y) 500
+set val(ifqlen) 50
+set val(nn) 5
+set val(stop) 50.0
+set val(rp) AODV
+set ns_ [new Simulator]
+set tracefd [open 006.tr w]
+$ns_ trace-all $tracefd
+set namtrace [open 006.nam w]
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+set prop [new $val(prop)]
+set topo [new Topography]
+$topo load_flatgrid $val(x) $val(y)
+create-god $val(nn)
+#Node Configuration
+$ns_ node-config -adhocRouting $val(rp) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-routerTrace ON \
+-macTrace ON \
+-IncomingErrProc "uniformErr" \
+-OutgoingErrProc "uniformErr"
+proc uniformErr {} {
+set err [new ErrorModel]
+$err unit pkt
+$err set rate_ 0.01
+return $err
+}
+#Creating Nodes
+for {set i 0} {$i < $val(nn) } {incr i} {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0
+}
+#Initial Positions of Nodes
+for {set i 0} {$i < $val(nn)} {incr i} {
+$ns_ initial_node_pos $node_($i) 40
+}
+#Topology Design
+$ns_ at 1.0 "$node_(0) setdest 10.0 10.0 50.0"
+$ns_ at 1.0 "$node_(1) setdest 10.0 100.0 50.0"
+$ns_ at 1.0 "$node_(4) setdest 50.0 50.0 50.0"
+$ns_ at 1.0 "$node_(2) setdest 100.0 100.0 50.0"
+$ns_ at 1.0 "$node_(3) setdest 100.0 10.0 50.0"
+#Generating Traffic
+set tcp0 [new Agent/TCP]
+set sink0 [new Agent/TCPSink]
+$ns_ attach-agent $node_(0) $tcp0
+$ns_ attach-agent $node_(2) $sink0
+$ns_ connect $tcp0 $sink0
+set ftp0 [new Application/FTP]
+$ftp0 attach-agent $tcp0
+$ns_ at 1.0 "$ftp0 start"
+$ns_ at 50.0 "$ftp0 stop"
+set tcp1 [new Agent/TCP]
+set sink1 [new Agent/TCPSink]
+$ns_ attach-agent $node_(1) $tcp1
+$ns_ attach-agent $node_(2) $sink1
+$ns_ connect $tcp1 $sink1
+set ftp1 [new Application/FTP]
+$ftp1 attach-agent $tcp1
+$ns_ at 1.0 "$ftp1 start"
+$ns_ at 50.0 "$ftp1 stop"
+#Simulation Termination
+for {set i 0} {$i < $val(nn) } {incr i} {
+$ns_ at $val(stop) "$node_($i) reset";
+}
+$ns_ at $val(stop) "puts \"NS EXITING...\" ; $ns_ halt"
+puts "Starting Simulation..."
+$ns_ run
